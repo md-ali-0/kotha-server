@@ -52,6 +52,24 @@ app.post('/add-category', async (req, res) => {
     const result = await categoryCollections.insertOne(category);
     res.send(result);
 });
+
+app.put('/edit-category/:id', async (req, res) => {
+    const id = req.params.id;
+    const filter = {
+        _id: new ObjectId(id)
+    }
+    const category = req.body
+    const updateValue = {
+        $set : {
+            categoryName:category.categoryName,
+            categoryDescription:category.categoryDescription,
+            categoryKeywords:category.categoryKeywords
+        }
+    }
+    const result = await categoryCollections.updateOne(filter, updateValue);
+    res.send(result);
+});
+
 app.post('/add-user', async (req, res) => {
     const user = req.body;
 
