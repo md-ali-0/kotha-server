@@ -27,11 +27,17 @@ const client = new MongoClient(uri,{
       }
 })
 const userCollections = client.db('kothaDB').collection('userCollections')
+const categoryCollections = client.db('kothaDB').collection('categoryCollections')
 
 app.get('/', (req, res) => {
     res.send('Kotha Server is running');
 });
 
+app.post('/add-category', async(req,res)=>{
+    const category = req.body
+    const result = await categoryCollections.insertOne(category)
+    res.send(result)
+})
 app.post('/add-user', async (req,res)=>{
     const user = req.body;
 
@@ -61,7 +67,6 @@ app.put('/edit-user', async (req,res)=>{
     const option = {
         upsert: true
     }
-    console.log(user);
     const result = await userCollections.updateOne(filter, values, option)
     res.send(result)
 })
