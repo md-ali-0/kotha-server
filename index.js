@@ -55,6 +55,14 @@ app.get('/all-post', async (req, res) => {
     const result = await postCollections.find().skip(page*size).limit(size).toArray();
     res.send(result);
 });
+app.get('/post/:id', async (req, res) => {
+    const id = req.params.id;
+    const filter = {
+        _id: new ObjectId(id) 
+    }
+    const result = await postCollections.findOne(filter);
+    res.send(result);
+});
 app.get('/dashboard-count', async (req, res) => {
     const postCount = await postCollections.estimatedDocumentCount()
     const categoryCount = await categoryCollections.estimatedDocumentCount()
