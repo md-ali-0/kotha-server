@@ -2,8 +2,8 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { config } from 'dotenv';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
-
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -49,12 +49,50 @@ app.get('/', (req, res) => {
     }
 });
 
-app.get('/get-wish-list', async (req, res) => {
+app.post('/jwt', (req, res) => {
+    const user = req.body;
+    try {
+        const token = jwt.sign(user, process.env.SECRET_TOKEN, {
+            expiresIn: 60 * 60,
+        });
+        res.cookie('token',token,{
+            httpOnly: true,
+            secure: false,
+        }).send('success')
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred.',
+        });
+    }
+});
+
+const verifyToken = async (req, res, next)=>{
+    const token = req.cookies.token
+    if (!token) {
+        return res.send('unAuthorize Access').status(401)
+    }
+    try {
+        const decoded = await jwt.verify(token, process.env.SECRET_TOKEN);
+        if (decoded) {
+            req.user = decoded
+            next()
+        }
+    } catch (error) {
+        res.send('unAuthorize Access').status(401)
+    }
+}
+
+
+app.get('/get-wish-list', verifyToken, async (req, res) => {
     const email = req.query.email;
     try {
         const query = {
             user: email,
         };
+        if (req.query.email !== req.user.email) {
+            return res.status(403).send('forbiden access')
+        }
         const result = await wishListCollections.find(query).toArray();
         res.send(result);
     } catch (error) {
@@ -108,7 +146,7 @@ app.get('/blog-by-category/:name', async (req, res) => {
         });
     }
 });
-app.get('/all-post', async (req, res) => {
+app.get('/all-post', verifyToken, async (req, res) => {
     try {
         const page = parseInt(req.query.page);
         const size = parseInt(req.query.size);
@@ -127,7 +165,7 @@ app.get('/all-post', async (req, res) => {
         });
     }
 });
-app.get('/all-blogs', async (req, res) => {
+app.get('/all-blogs', verifyToken, async (req, res) => {
     const query = req.query;
     let filter = {};
     if (query.email) {
@@ -140,6 +178,9 @@ app.get('/all-blogs', async (req, res) => {
         const search = { $text: { $search: query.search } };
         filter = { ...filter, ...search };
     }
+    if (req.query.email !== req.user.email) {
+        return res.status(403).send('forbiden access')
+    }
     try {
         const result = await postCollections.find(filter).toArray();
         res.send(result);
@@ -150,8 +191,11 @@ app.get('/all-blogs', async (req, res) => {
         });
     }
 });
-app.get('/featured-post', async (req, res) => {
+app.get('/featured-post', verifyToken, async (req, res) => {
     try {
+        if (req.query.email !== req.user.email) {
+            return res.status(403).send('forbiden access')
+        }
         const result = await postCollections
             .aggregate([
                 {
@@ -216,7 +260,7 @@ app.get('/comment/:id', async (req, res) => {
         const filter = {
             _id: new ObjectId(id),
         };
-        const result = await commentsCollections.findOne(filter)
+        const result = await commentsCollections.findOne(filter);
         res.send(result);
     } catch (error) {
         console.log(error);
@@ -226,7 +270,7 @@ app.get('/comment/:id', async (req, res) => {
     }
 });
 
-app.post('/add-comment', async (req, res) => {
+app.post('/add-comment', verifyToken, async (req, res) => {
     try {
         const comment = req.body;
         const result = await commentsCollections.insertOne(comment);
@@ -239,7 +283,7 @@ app.post('/add-comment', async (req, res) => {
     }
 });
 
-app.put('/edit-comment/:id', async (req, res) => {
+app.put('/edit-comment/:id', verifyToken, async (req, res) => {
     try {
         const id = req.params.id;
         const filter = {
@@ -260,7 +304,7 @@ app.put('/edit-comment/:id', async (req, res) => {
         });
     }
 });
-app.get('/dashboard-count', async (req, res) => {
+app.get('/dashboard-count', verifyToken, async (req, res) => {
     try {
         const postCount = await postCollections.estimatedDocumentCount();
         const categoryCount =
@@ -276,7 +320,7 @@ app.get('/dashboard-count', async (req, res) => {
     }
 });
 
-app.post('/add-category', async (req, res) => {
+app.post('/add-category', verifyToken, async (req, res) => {
     try {
         const category = req.body;
         const result = await categoryCollections.insertOne(category);
@@ -289,7 +333,7 @@ app.post('/add-category', async (req, res) => {
     }
 });
 
-app.put('/edit-category/:id', async (req, res) => {
+app.put('/edit-category/:id', verifyToken, async (req, res) => {
     try {
         const id = req.params.id;
         const filter = {
@@ -313,7 +357,7 @@ app.put('/edit-category/:id', async (req, res) => {
     }
 });
 
-app.delete('/delete-category/:id', async (req, res) => {
+app.delete('/delete-category/:id', verifyToken, async (req, res) => {
     const id = req.params.id;
     const filter = {
         _id: new ObjectId(id),
@@ -321,13 +365,13 @@ app.delete('/delete-category/:id', async (req, res) => {
     const result = await categoryCollections.deleteOne(filter);
     res.send(result);
 });
-app.post('/add-post', async (req, res) => {
+app.post('/add-post', verifyToken, async (req, res) => {
     const post = req.body;
     const result = await postCollections.insertOne(post);
     res.send(result);
 });
 
-app.put('/edit-post/:id', async (req, res) => {
+app.put('/edit-post/:id', verifyToken, async (req, res) => {
     const id = req.params.id;
     const updatePost = req.body;
     const filter = {
@@ -348,7 +392,7 @@ app.put('/edit-post/:id', async (req, res) => {
     const result = await postCollections.updateOne(filter, updateDoc, options);
     res.send(result);
 });
-app.delete('/delete-post/:id', async (req, res) => {
+app.delete('/delete-post/:id', verifyToken, async (req, res) => {
     const id = req.params.id;
     const filter = {
         _id: new ObjectId(id),
@@ -356,13 +400,13 @@ app.delete('/delete-post/:id', async (req, res) => {
     const result = await postCollections.deleteOne(filter);
     res.send(result);
 });
-app.post('/add-user', async (req, res) => {
+app.post('/add-user', verifyToken, async (req, res) => {
     const user = req.body;
 
     const result = await userCollections.insertOne(user);
     res.send(result);
 });
-app.put('/edit-user', async (req, res) => {
+app.put('/edit-user', verifyToken, async (req, res) => {
     const user = req.body;
 
     const filter = {
@@ -384,14 +428,14 @@ app.put('/edit-user', async (req, res) => {
     res.send(result);
 });
 
-app.post('/add-to-wishlist', async (req, res) => {
+app.post('/add-to-wishlist', verifyToken, async (req, res) => {
     const post = req.body;
-    delete post._id
+    delete post._id;
     const result = await wishListCollections.insertOne(post);
     res.send(result);
 });
 
-app.delete('/delete-to-wishlist/:id', async (req, res) => {
+app.delete('/delete-to-wishlist/:id', verifyToken, async (req, res) => {
     const id = req.params.id;
     const filter = {
         _id: new ObjectId(id),
@@ -399,6 +443,8 @@ app.delete('/delete-to-wishlist/:id', async (req, res) => {
     const result = await wishListCollections.deleteOne(filter);
     res.send(result);
 });
+
+
 app.listen(port, () => {
     console.log(`Listing .... ${port}`);
 });
