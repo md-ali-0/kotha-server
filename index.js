@@ -27,6 +27,7 @@ const client = new MongoClient(uri, {
     },
 });
 const postCollections = client.db('kothaDB').collection('postCollections');
+const commentsCollections = client.db('kothaDB').collection('commentsCollections');
 const userCollections = client.db('kothaDB').collection('userCollections');
 const categoryCollections = client
     .db('kothaDB')
@@ -37,8 +38,7 @@ app.get('/', (req, res) => {
 });
 app.get('/categories', async (req, res) => {
     const result = await categoryCollections.find().toArray();
-    const totalCategories = result.length;
-    res.send({ result, totalCategories });
+    res.send(result);
 });
 app.get('/category/:id', async (req, res) => {
     const id = req.params.id;
@@ -50,8 +50,17 @@ app.get('/category/:id', async (req, res) => {
 });
 
 app.get('/all-post', async (req, res) => {
-    const result = await postCollections.find().toArray();
+    const page = parseInt(req.query.page)
+    const size = parseInt(req.query.size)
+    const result = await postCollections.find().skip(page*size).limit(size).toArray();
     res.send(result);
+});
+app.get('/dashboard-count', async (req, res) => {
+    const postCount = await postCollections.estimatedDocumentCount()
+    const categoryCount = await categoryCollections.estimatedDocumentCount()
+    const userCount = await userCollections.estimatedDocumentCount()
+    const commentCount = await commentsCollections.estimatedDocumentCount()
+    res.send({postCount, categoryCount, userCount, commentCount});
 });
 
 app.post('/add-category', async (req, res) => {
