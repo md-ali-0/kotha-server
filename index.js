@@ -73,7 +73,22 @@ app.get('/category/:id', async (req, res) => {
         });
     }
 });
+app.get('/blog-by-category/:name', async (req, res) => {
+    try {
+        const category = req.params.name;
+        const filter = {
+            category: category
+        };
 
+        const result = await postCollections.find(filter).toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching category details.',
+        });
+    }
+});
 app.get('/all-post', async (req, res) => {
     try {
         const page = parseInt(req.query.page);
