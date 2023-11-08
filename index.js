@@ -26,6 +26,7 @@ const client = new MongoClient(uri, {
         deprecationErrors: true,
     },
 });
+const postCollections = client.db('kothaDB').collection('postCollections');
 const userCollections = client.db('kothaDB').collection('userCollections');
 const categoryCollections = client
     .db('kothaDB')
@@ -36,17 +37,23 @@ app.get('/', (req, res) => {
 });
 app.get('/categories', async (req, res) => {
     const result = await categoryCollections.find().toArray();
-    const totalCategories = result.length
-    res.send({result, totalCategories})
+    const totalCategories = result.length;
+    res.send({ result, totalCategories });
 });
 app.get('/category/:id', async (req, res) => {
-    const id = req.params.id
+    const id = req.params.id;
     const filter = {
-        _id: new ObjectId(id)
-    }
-    const result = await categoryCollections.findOne(filter)
-    res.send(result)
+        _id: new ObjectId(id),
+    };
+    const result = await categoryCollections.findOne(filter);
+    res.send(result);
 });
+
+app.get('/all-post', async (req, res) => {
+    const result = await postCollections.find().toArray();
+    res.send(result);
+});
+
 app.post('/add-category', async (req, res) => {
     const category = req.body;
     const result = await categoryCollections.insertOne(category);
@@ -56,20 +63,32 @@ app.post('/add-category', async (req, res) => {
 app.put('/edit-category/:id', async (req, res) => {
     const id = req.params.id;
     const filter = {
-        _id: new ObjectId(id)
-    }
-    const category = req.body
+        _id: new ObjectId(id),
+    };
+    const category = req.body;
     const updateValue = {
-        $set : {
-            categoryName:category.categoryName,
-            categoryDescription:category.categoryDescription,
-            categoryKeywords:category.categoryKeywords
-        }
-    }
+        $set: {
+            categoryName: category.categoryName,
+            categoryDescription: category.categoryDescription,
+            categoryKeywords: category.categoryKeywords,
+        },
+    };
     const result = await categoryCollections.updateOne(filter, updateValue);
     res.send(result);
 });
-
+app.delete('/delete-category/:id', async (req, res) => {
+    const id = req.params.id;
+    const filter = {
+        _id: new ObjectId(id),
+    };
+    const result = await categoryCollections.deleteOne(filter);
+    res.send(result);
+});
+app.post('/add-post', async (req, res) => {
+    const post = req.body;
+    const result = await postCollections.insertOne(post);
+    res.send(result);
+});
 app.post('/add-user', async (req, res) => {
     const user = req.body;
 
