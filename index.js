@@ -27,71 +27,165 @@ const client = new MongoClient(uri, {
     },
 });
 const postCollections = client.db('kothaDB').collection('postCollections');
-const commentsCollections = client.db('kothaDB').collection('commentsCollections');
+const commentsCollections = client
+    .db('kothaDB')
+    .collection('commentsCollections');
 const userCollections = client.db('kothaDB').collection('userCollections');
 const categoryCollections = client
     .db('kothaDB')
     .collection('categoryCollections');
 
 app.get('/', (req, res) => {
-    res.send('Kotha Server is running');
+    try {
+        res.send('Kotha Server is running');
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while running server.',
+        });
+    }
 });
+
 app.get('/categories', async (req, res) => {
-    const result = await categoryCollections.find().toArray();
-    res.send(result);
+    try {
+        const result = await categoryCollections.find().toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching all categories.',
+        });
+    }
 });
+
 app.get('/category/:id', async (req, res) => {
-    const id = req.params.id;
-    const filter = {
-        _id: new ObjectId(id),
-    };
-    const result = await categoryCollections.findOne(filter);
-    res.send(result);
+    try {
+        const id = req.params.id;
+        const filter = {
+            _id: new ObjectId(id),
+        };
+        const result = await categoryCollections.findOne(filter);
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching category details.',
+        });
+    }
 });
 
 app.get('/all-post', async (req, res) => {
-    const page = parseInt(req.query.page)
-    const size = parseInt(req.query.size)
-    const result = await postCollections.find().skip(page*size).limit(size).toArray();
-    res.send(result);
-});
-app.get('/post/:id', async (req, res) => {
-    const id = req.params.id;
-    const filter = {
-        _id: new ObjectId(id) 
+    try {
+        const page = parseInt(req.query.page);
+        const size = parseInt(req.query.size);
+
+        const result = await postCollections
+            .find()
+            .sort({ createdAt: -1 })
+            .skip(page * size)
+            .limit(size)
+            .toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching all posts.',
+        });
     }
-    const result = await postCollections.findOne(filter);
-    res.send(result);
+});
+app.get('/featured-post', async (req, res) => {
+    try {
+        const result = await postCollections
+            .aggregate([
+                {
+                    $addFields: {
+                        longDescriptionLength: {
+                            $strLenCP: '$longDescription',
+                        },
+                    },
+                },
+                {
+                    $sort: {
+                        longDescriptionLength: -1,
+                    },
+                },
+            ])
+            .toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching featured posts.',
+        });
+    }
+});
+
+app.get('/post/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const filter = {
+            _id: new ObjectId(id),
+        };
+        const result = await postCollections.findOne(filter);
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching single blog posts.',
+        });
+    }
 });
 app.get('/dashboard-count', async (req, res) => {
-    const postCount = await postCollections.estimatedDocumentCount()
-    const categoryCount = await categoryCollections.estimatedDocumentCount()
-    const userCount = await userCollections.estimatedDocumentCount()
-    const commentCount = await commentsCollections.estimatedDocumentCount()
-    res.send({postCount, categoryCount, userCount, commentCount});
+    try {
+        const postCount = await postCollections.estimatedDocumentCount();
+        const categoryCount =
+            await categoryCollections.estimatedDocumentCount();
+        const userCount = await userCollections.estimatedDocumentCount();
+        const commentCount = await commentsCollections.estimatedDocumentCount();
+        res.send({ postCount, categoryCount, userCount, commentCount });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while loading dashboard counts.',
+        });
+    }
 });
 
 app.post('/add-category', async (req, res) => {
-    const category = req.body;
-    const result = await categoryCollections.insertOne(category);
-    res.send(result);
+    try {
+        const category = req.body;
+        const result = await categoryCollections.insertOne(category);
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while adding categories.',
+        });
+    }
 });
 
 app.put('/edit-category/:id', async (req, res) => {
-    const id = req.params.id;
-    const filter = {
-        _id: new ObjectId(id),
-    };
-    const category = req.body;
-    const updateValue = {
-        $set: {
-            categoryName: category.categoryName,
-            categoryDescription: category.categoryDescription,
-            categoryKeywords: category.categoryKeywords,
-        },
-    };
-    const result = await categoryCollections.updateOne(filter, updateValue);
-    res.send(result);
+    try {
+        const id = req.params.id;
+        const filter = {
+            _id: new ObjectId(id),
+        };
+        const category = req.body;
+        const updateValue = {
+            $set: {
+                categoryName: category.categoryName,
+                categoryDescription: category.categoryDescription,
+                categoryKeywords: category.categoryKeywords,
+            },
+        };
+        const result = await categoryCollections.updateOne(filter, updateValue);
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred updating categories.',
+        });
+    }
 });
 app.delete('/delete-category/:id', async (req, res) => {
     const id = req.params.id;
@@ -104,6 +198,36 @@ app.delete('/delete-category/:id', async (req, res) => {
 app.post('/add-post', async (req, res) => {
     const post = req.body;
     const result = await postCollections.insertOne(post);
+    res.send(result);
+});
+
+app.put('/edit-post/:id', async (req, res) => {
+    const id = req.params.id;
+    const updatePost = req.body;
+    const filter = {
+        _id: new ObjectId(id),
+    };
+    const updateDoc = {
+        $set: {
+            title: updatePost.title,
+            image: updatePost.image,
+            category: updatePost.category,
+            shortDescription: updatePost.shortDescription,
+            longDescription: updatePost.longDescription,
+            updatedAt: updatePost.updatedAt,
+        },
+    };
+    const options = { upsert: true };
+
+    const result = await postCollections.updateOne(filter, updateDoc, options);
+    res.send(result);
+});
+app.delete('/delete-post/:id', async (req, res) => {
+    const id = req.params.id;
+    const filter = {
+        _id: new ObjectId(id),
+    };
+    const result = await postCollections.deleteOne(filter);
     res.send(result);
 });
 app.post('/add-user', async (req, res) => {
