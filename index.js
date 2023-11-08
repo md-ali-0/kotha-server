@@ -34,6 +34,9 @@ const userCollections = client.db('kothaDB').collection('userCollections');
 const categoryCollections = client
     .db('kothaDB')
     .collection('categoryCollections');
+const wishListCollections = client
+    .db('kothaDB')
+    .collection('wishListCollections');
 
 app.get('/', (req, res) => {
     try {
@@ -42,6 +45,22 @@ app.get('/', (req, res) => {
         console.log(error);
         res.status(500).json({
             error: 'An error occurred while running server.',
+        });
+    }
+});
+
+app.get('/get-wish-list', async (req, res) => {
+    const email = req.query.email;
+    try {
+        const query = {
+            user: email,
+        };
+        const result = await wishListCollections.find(query).toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching all categories.',
         });
     }
 });
@@ -77,7 +96,7 @@ app.get('/blog-by-category/:name', async (req, res) => {
     try {
         const category = req.params.name;
         const filter = {
-            category: category
+            category: category,
         };
 
         const result = await postCollections.find(filter).toArray();
@@ -105,6 +124,29 @@ app.get('/all-post', async (req, res) => {
         console.log(error);
         res.status(500).json({
             error: 'An error occurred while fetching all posts.',
+        });
+    }
+});
+app.get('/all-blogs', async (req, res) => {
+    const query = req.query;
+    let filter = {};
+    if (query.email) {
+        filter.createdBy = query.email;
+    }
+    if (query.category) {
+        filter.category = query.category;
+    }
+    if (query.search) {
+        const search = { $text: { $search: query.search } };
+        filter = { ...filter, ...search };
+    }
+    try {
+        const result = await postCollections.find(filter).toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching all blogs by',
         });
     }
 });
@@ -147,6 +189,74 @@ app.get('/post/:id', async (req, res) => {
         console.log(error);
         res.status(500).json({
             error: 'An error occurred while fetching single blog posts.',
+        });
+    }
+});
+
+app.get('/comments', async (req, res) => {
+    const postId = req.query.postId;
+
+    try {
+        const filter = {
+            postId: postId,
+        };
+        const result = await commentsCollections.find(filter).toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching single blog posts.',
+        });
+    }
+});
+app.get('/comment/:id', async (req, res) => {
+    const id = req.params.id;
+
+    try {
+        const filter = {
+            _id: new ObjectId(id),
+        };
+        const result = await commentsCollections.findOne(filter)
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching single blog posts.',
+        });
+    }
+});
+
+app.post('/add-comment', async (req, res) => {
+    try {
+        const comment = req.body;
+        const result = await commentsCollections.insertOne(comment);
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching single blog comment.',
+        });
+    }
+});
+
+app.put('/edit-comment/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const filter = {
+            _id: new ObjectId(id),
+        };
+        const comment = req.body;
+        const updateValue = {
+            $set: {
+                comment: comment.comment,
+            },
+        };
+        const result = await commentsCollections.updateOne(filter, updateValue);
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred updating categories.',
         });
     }
 });
@@ -202,6 +312,7 @@ app.put('/edit-category/:id', async (req, res) => {
         });
     }
 });
+
 app.delete('/delete-category/:id', async (req, res) => {
     const id = req.params.id;
     const filter = {
@@ -248,11 +359,6 @@ app.delete('/delete-post/:id', async (req, res) => {
 app.post('/add-user', async (req, res) => {
     const user = req.body;
 
-    // const isUserExits = await userCollections.findOne({email: user.email})
-    // if (isUserExits) {
-    //     return res.status(400).send('User Already Exits')
-    // }
-
     const result = await userCollections.insertOne(user);
     res.send(result);
 });
@@ -278,6 +384,21 @@ app.put('/edit-user', async (req, res) => {
     res.send(result);
 });
 
+app.post('/add-to-wishlist', async (req, res) => {
+    const post = req.body;
+    delete post._id
+    const result = await wishListCollections.insertOne(post);
+    res.send(result);
+});
+
+app.delete('/delete-to-wishlist/:id', async (req, res) => {
+    const id = req.params.id;
+    const filter = {
+        _id: new ObjectId(id),
+    };
+    const result = await wishListCollections.deleteOne(filter);
+    res.send(result);
+});
 app.listen(port, () => {
     console.log(`Listing .... ${port}`);
 });
