@@ -10,10 +10,17 @@ const port = process.env.PORT || 8080;
 config();
 app.use(
     cors({
-        origin: ['http://localhost:5173'],
+        origin: [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'https://kotha-blog.netlify.app',
+            'https://kotha-blog-a.firebaseapp.com',
+            'https://kotha-blog-a.web.app',
+        ],
         credentials: true,
     }),
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -49,49 +56,31 @@ app.get('/', (req, res) => {
     }
 });
 
-app.post('/jwt', (req, res) => {
-    const user = req.body;
-    try {
-        const token = jwt.sign(user, process.env.SECRET_TOKEN, {
-            expiresIn: 60 * 60,
-        });
-        res.cookie('token',token,{
-            httpOnly: true,
-            secure: false,
-        }).send('success')
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({
-            error: 'An error occurred.',
-        });
-    }
-});
-
-const verifyToken = async (req, res, next)=>{
-    const token = req.cookies.token
+const verifyToken = async (req, res, next) => {
+    const token = req.cookies.token;
+  
     if (!token) {
-        return res.send('unAuthorize Access').status(401)
+      return res.send('unAuthorize Access').status(401);
     }
+  
     try {
-        const decoded = await jwt.verify(token, process.env.SECRET_TOKEN);
-        if (decoded) {
-            req.user = decoded
-            next()
-        }
+      const decoded = await jwt.verify(token, process.env.SECRET_TOKEN);
+      req.user = decoded;
+      next();
     } catch (error) {
-        res.send('unAuthorize Access').status(401)
+      console.error(error);
+      res.send('unAuthorize Access').status(401);
     }
-}
+  };
 
-
-app.get('/get-wish-list', verifyToken, async (req, res) => {
-    const email = req.query.email;
+app.get('/get-wish-list/:email', verifyToken, async (req, res) => {
+    const email = req.params.email;
     try {
         const query = {
             user: email,
         };
-        if (req.query.email !== req.user.email) {
-            return res.status(403).send('forbiden access')
+        if (req.params.email !== req.user.email) {
+            return res.status(403).send('forbiden access');
         }
         const result = await wishListCollections.find(query).toArray();
         res.send(result);
@@ -146,7 +135,7 @@ app.get('/blog-by-category/:name', async (req, res) => {
         });
     }
 });
-app.get('/all-post', verifyToken, async (req, res) => {
+app.get('/all-post', async (req, res) => {
     try {
         const page = parseInt(req.query.page);
         const size = parseInt(req.query.size);
@@ -178,8 +167,9 @@ app.get('/all-blogs', verifyToken, async (req, res) => {
         const search = { $text: { $search: query.search } };
         filter = { ...filter, ...search };
     }
+
     if (req.query.email !== req.user.email) {
-        return res.status(403).send('forbiden access')
+        return res.status(403).send('forbiden access');
     }
     try {
         const result = await postCollections.find(filter).toArray();
@@ -190,11 +180,39 @@ app.get('/all-blogs', verifyToken, async (req, res) => {
             error: 'An error occurred while fetching all blogs by',
         });
     }
+    
 });
-app.get('/featured-post', verifyToken, async (req, res) => {
+app.get('/featured-post-home', async (req, res) => {
     try {
-        if (req.query.email !== req.user.email) {
-            return res.status(403).send('forbiden access')
+        const result = await postCollections
+            .aggregate([
+                {
+                    $addFields: {
+                        longDescriptionLength: {
+                            $strLenCP: '$longDescription',
+                        },
+                    },
+                },
+                {
+                    $sort: {
+                        longDescriptionLength: -1,
+                    },
+                },
+            ])
+            .toArray();
+        res.send(result);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred while fetching featured posts.',
+        });
+    }
+});
+
+app.get('/featured-post/:email', verifyToken, async (req, res) => {
+    try {
+        if (req.params.email !== req.user.email) {
+            return res.status(403).send('forbiden access');
         }
         const result = await postCollections
             .aggregate([
@@ -304,7 +322,7 @@ app.put('/edit-comment/:id', verifyToken, async (req, res) => {
         });
     }
 });
-app.get('/dashboard-count', verifyToken, async (req, res) => {
+app.get('/dashboard-count', async (req, res) => {
     try {
         const postCount = await postCollections.estimatedDocumentCount();
         const categoryCount =
@@ -374,6 +392,9 @@ app.post('/add-post', verifyToken, async (req, res) => {
 app.put('/edit-post/:id', verifyToken, async (req, res) => {
     const id = req.params.id;
     const updatePost = req.body;
+    if (req.body.email !== req.user.email) {
+        return res.status(403).send('forbiden access');
+    }
     const filter = {
         _id: new ObjectId(id),
     };
@@ -400,13 +421,13 @@ app.delete('/delete-post/:id', verifyToken, async (req, res) => {
     const result = await postCollections.deleteOne(filter);
     res.send(result);
 });
-app.post('/add-user', verifyToken, async (req, res) => {
+app.post('/add-user', async (req, res) => {
     const user = req.body;
 
     const result = await userCollections.insertOne(user);
     res.send(result);
 });
-app.put('/edit-user', verifyToken, async (req, res) => {
+app.put('/edit-user', async (req, res) => {
     const user = req.body;
 
     const filter = {
@@ -444,6 +465,33 @@ app.delete('/delete-to-wishlist/:id', verifyToken, async (req, res) => {
     res.send(result);
 });
 
+app.post('/jwt', (req, res) => {
+    const user = req.body;
+    try {
+        const token = jwt.sign(user, process.env.SECRET_TOKEN, {
+            expiresIn: 60 * 60,
+        });
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
+        }).send('success');
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            error: 'An error occurred.',
+        });
+    }
+});
+
+app.post('/logout', async (req, res) => {
+    const user = req.body;
+    res.clearCookie('token', {
+        maxAge: 0,
+        sameSite: 'none',
+        secure: true,
+    }).send({ success: true });
+});
 
 app.listen(port, () => {
     console.log(`Listing .... ${port}`);
